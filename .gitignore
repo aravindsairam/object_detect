@@ -1,0 +1,14 @@
+# models
+/models
+
+# test dataset
+/test_vids
+
+# dataset
+/data
+
+# model runs
+/runs
+
+# virtual environment
+/venv

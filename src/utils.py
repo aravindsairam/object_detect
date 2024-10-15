@@ -42,13 +42,13 @@ def video2images(IpAnnPath, IpImgPath, OpAnnPath, OpImgPath):
     def arrageAnns(IpAnnPath, OpAnnPath):
         Path(OpAnnPath).mkdir(parents=True, exist_ok=True)
         image_annotations = os.listdir(IpAnnPath)
+        padding_length = 7 # got this from the image name
         for ann in image_annotations:
             df = pd.read_csv(os.path.join(IpAnnPath,ann), header=None)
             unique_df = df[0].unique()
             for i in range(len(unique_df)):
                 # naming the txt file
-                add_zeros = "0000" if i >= 99 else "00000" # this condition does not work, change it
-                txt_name = add_zeros + str(unique_df[i]) + ".txt"
+                txt_name = str(unique_df[i]).zfill(padding_length) + ".txt"
                 ann_name = ann.split(".")[0]+"_"+txt_name
 
                 # get annotations for each image
@@ -62,33 +62,48 @@ def video2images(IpAnnPath, IpImgPath, OpAnnPath, OpImgPath):
     arrageAnns(IpAnnPath, OpAnnPath)
     
 
-def processVisDroneDET():
-    data_path = "/home/sai/drone_ws/src/object_detect/data/VisDrone"
-
-    for d in ['VisDrone2019-DET-train', 'VisDrone2019-DET-val', 'VisDrone2019-VID-DET-dev']:
+def convert2yolo(data_path, d_list):
+    for d in ['VisDrone2019-VID-train','VisDrone2019-VID-val', 'VisDrone2019-VID-test-dev']: 
         visdrone2yolo(os.path.join(data_path, d))  # convert VisDrone annotations to YOLO labels
 
-def processVisDroneVID():
-    data_path = "/home/sai/drone_ws/src/object_detect/data/VisDrone/VisVideo"
-    for d in ['VisDrone2019-VID-train', 'VisDrone2019-VID-val']: #, 'VisDrone2019-VID-test-dev']:
+def processVisDroneVID(data_path, d_list):
+    for d in d_list: 
         video2images(os.path.join(data_path, d, 'old_annotations'),
                      os.path.join(data_path, d, 'sequences'),
                      os.path.join(data_path, d, 'annotations'),
                      os.path.join(data_path, d, 'images'))
 
+# copy the images and labels files from both video and image datasets to a single folder
+def combineDatasets(video_path, image_path, output_path):
+    def moveFiles(data_list, input_path, output_path):
+        for d in data_list:
+            if d.split('-')[-1] == 'train':
+                for img in os.listdir(os.path.join(input_path, d, 'images')):
+                    shutil.move(os.path.join(input_path, d, 'images', img), os.path.join(output_path, 'train', 'images',  img))
+                for ann in os.listdir(os.path.join(input_path, d, 'labels')):
+                    shutil.move(os.path.join(input_path, d, 'labels', ann), os.path.join(output_path, 'train', 'labels', ann)) 
+            elif d.split('-')[-1] == 'val':
+                for img in os.listdir(os.path.join(input_path, d, 'images')):
+                    shutil.move(os.path.join(input_path, d, 'images', img), os.path.join(output_path, 'val', 'images', img))
+                for ann in os.listdir(os.path.join(input_path, d, 'labels')):
+                    shutil.move(os.path.join(input_path, d, 'labels', ann), os.path.join(output_path, 'val', 'labels', ann))
+            else:
+                for img in os.listdir(os.path.join(input_path, d, 'images')):
+                    shutil.move(os.path.join(input_path, d, 'images', img), os.path.join(output_path, 'test', 'images', img))
+                for ann in os.listdir(os.path.join(input_path, d, 'labels')):
+                    shutil.move(os.path.join(input_path, d, 'labels', ann), os.path.join(output_path, 'test', 'labels', ann))
+    Path(os.path.join(output_path, 'train', 'images')).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(output_path, 'train', 'labels')).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(output_path, 'val', 'images')).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(output_path, 'val', 'labels')).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(output_path, 'test', 'images')).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(output_path, 'test', 'labels')).mkdir(parents=True, exist_ok=True)
+
+    moveFiles(['VisDrone2019-VID-train','VisDrone2019-VID-val', 'VisDrone2019-VID-test-dev'], video_path, output_path)
+    moveFiles(['VisDrone2019-DET-train', 'VisDrone2019-DET-val', 'VisDrone2019-DET-test-dev'], image_path, output_path)
 
 if __name__ == '__main__':
-    processVisDroneDET()
-    # processVisDroneVID()
-    # img_list = os.listdir("/home/sai/drone_ws/src/object_detect/data/VisDrone/VisVideo/VisDrone2019-VID-test-dev/images")
-    # ann_list = os.listdir("/home/sai/drone_ws/src/object_detect/data/VisDrone/VisVideo/VisDrone2019-VID-test-dev/annotations")
-    # not_include = []
-    # for img in img_list:
-    #     img = img.split(".")[0] + ".txt"
-    #     if img not in ann_list:
-    #         not_include.append(img)
-
-    # print(len(not_include))
-    # print(len(img_list))
-    # print(len(ann_list))
-    # print(not_include[:10])
+    convert2yolo("/home/sai/drone_ws/src/object_detect/data/VisDrone", ['VisDrone2019-DET-train', 'VisDrone2019-DET-val', 'VisDrone2019-DET-test-dev'])
+    processVisDroneVID("/home/sai/drone_ws/src/object_detect/data/VisVideo", ['VisDrone2019-VID-train','VisDrone2019-VID-val', 'VisDrone2019-VID-test-dev'])
+    convert2yolo("/home/sai/drone_ws/src/object_detect/data/VisVideo", ['VisDrone2019-VID-train','VisDrone2019-VID-val', 'VisDrone2019-VID-test-dev'])
+    combineDatasets("/home/sai/drone_ws/src/object_detect/data/VisVideo", "/home/sai/drone_ws/src/object_detect/data/VisDrone", "/home/sai/drone_ws/src/object_detect/data/VisCombined")
